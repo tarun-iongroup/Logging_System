@@ -17,19 +17,8 @@ class AwsStack(Stack):
 
         bucket = s3.Bucket(self,"ion-bucket")
         queue = sqs.Queue(self,"ion-queue")
-        lambda_func = _lambda.Function(self, 'LambdaListener',
-                       runtime=_lambda.Runtime.PYTHON_3_8,
-                       handler='lambda.handler',
-                       code=_lambda.Code.from_asset('lambda'),
-                       environment={'BUCKET_NAME':bucket.bucket_name,'QUEUE_NAME':queue.queue_name},
-                       # on_success=destinations.SqsDestination(queue)
-                       )
-
-        queue.grant_send_messages(lambda_func)
-
-        notification = s3_notify.LambdaDestination(lambda_func)
+        notification = s3_notify.SqsDestination(queue)
         notification.bind(self, bucket)
         
-        bucket.grant_read(lambda_func)
         bucket.add_object_created_notification(notification)
 
