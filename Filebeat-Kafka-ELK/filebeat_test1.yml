@@ -1,0 +1,62 @@
+# Sqs to Kafka
+
+filebeat.inputs:
+- type: aws-s3
+  gzip: true
+  queue_url: https://sqs.us-west-2.amazonaws.com/715611372010/myqueue
+  visibility_timeout: 300s
+  credential_profile_name: default
+
+# To output on Console
+# output.console:
+#   pretty: true
+
+
+# To forward to Kafka
+output.kafka:
+  hosts: [ "localhost:9092" ]
+  topic: "no-match-%{[agent.version]}"
+  topics:
+    - topic: "twitter"
+      when.contains:
+        aws.s3.object.key: "metrics-system"
+    - topic: "instagram"
+      when.contains:
+        aws.s3.object.key: "metrics."
+#  codec.format:
+#    string: '%{[log-line]}'
+
+
+processors:
+  - drop_event:
+      when:
+        or:
+          - equals:
+              stream: "stdout"
+          - equals:
+              stream: "stderr"
+  - add_cloud_metadata: ~
+  - decode_json_fields:
+      fields: [ "message" ]
+      process_array: false
+      max_depth: 5
+      target: ""
+      overwrite_keys: false
+      add_error_key: true
+  - drop_fields:
+      fields: ["agent"]
+      ignore_missing: true
+#  - rename:
+#      fields:
+#        - from: "message"
+#          to: "log-line"
+
+logging.level: debug
+logging.to_files: true
+logging.selectors: [input.aws-s3, monitoring, publisher, kafka, acker, processors]
+logging.files:
+  path: /usr/share/filebeat/logs
+  name: filebeat.log
+  keepfiles: 100
+  permissions: 0600
+  rotateeverybytes: 104857600

@@ -1,0 +1,63 @@
+# Filebeat kafka to Logstash.
+
+filebeat.inputs:
+- type: kafka
+  hosts:
+    - localhost:9092
+  topics:
+    - "instagram"
+  # gzip: true
+  group_id: "kafka-consumer-filebeat"
+  visibility_timeout: 300s
+  credential_profile_name: default
+
+# output.console:
+#   pretty: true
+
+output.logstash:
+  hosts: ["localhost:5044"]
+
+
+processors:
+  - decode_json_fields:
+      fields: ["message"]
+      max_depth: 10
+      overwrite_keys: false
+      add_error_key: true
+      target: ""
+  - script:
+      lang: javascript
+      id: customerName_filter
+      source: >
+        function process(event) {
+         var objectkey = event.Get("aws.s3.object.key");
+         if (objectkey != null ) {
+            var objectkeyArr  = objectkey.split("/");
+            if (objectkeyArr!= null  && objectkeyArr.length > 3 ){
+                var customerName = objectkeyArr[1].trim();
+                event.Put("customerShortName",customerName);
+                event.Put("customerEnvironment",objectkeyArr[2]);
+            }
+         }
+         var message = event.Get("message");
+         var stringify = JSON.stringify(message);
+         event.Put("message",stringify);
+        }
+
+
+# filebeat.inputs:
+#   - type: kafka
+#     hosts:
+#       - 10.232.128.148:9095
+#     topics:
+#       - "ph-metric-system-log"
+#     group_id: "kafka-consumer-filebeat"
+#     fields:
+#      type: metrics
+#      logComponentName: CONTROLLER_1
+#      logComponentType: TPT_CXL_SERVER
+#      logFileTimeZone: UTC
+#      agentSource: filebeat_kafka
+#      logParserType: TPT_PH
+#      logFileType: TPT_PH_SYSTEM
+#      platform.name: interpolation-us-east1
