@@ -1,0 +1,39 @@
+output.kafka:
+  hosts: [ "localhost:9092" ]
+  topic: "no-match-%{[agent.version]}"
+  topics:
+    - topic: "ph-metric-system-log"
+      when.contains:
+        aws.s3.object.key: "metrics-system"
+    - topic: "ph-metric-log"
+      when.contains:
+        aws.s3.object.key: "metrics"
+
+filebeat.inputs:
+- type: aws-s3
+  queue_url: https://sqs.eu-west-1.amazonaws.com/919082569330/cdk-workshop-socialmediaqueueBE700573-K2oOs1pfVulX
+  visibility_timeout: 300s
+  credential_profile_name: default 
+  keepfiles: 10
+  permissions: 0600
+
+
+processors:
+  - drop_event:
+      when:
+        or:
+          - equals:
+              stream: "stdout"
+          - equals:
+              stream: "stderr"
+  - add_cloud_metadata: ~
+  - decode_json_fields:
+      fields: [ "message" ]
+      process_array: false
+      max_depth: 5
+      target: ""
+      overwrite_keys: false
+      add_error_key: true
+  - drop_fields:
+      fields: ["agent"]
+      ignore_missing: true
