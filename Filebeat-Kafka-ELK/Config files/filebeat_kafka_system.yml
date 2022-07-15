@@ -1,0 +1,122 @@
+###################### Filebeat Configuration Example #########################
+
+# This file is an example configuration file highlighting only the most common
+# options. The filebeat.reference.yml file from the same directory contains all the
+# supported options with more comments. You can use it as a reference.
+#
+# You can find the full configuration reference here:
+# https://www.elastic.co/guide/en/beats/filebeat/index.html
+
+# For more available modules and options, please see the filebeat.reference.yml sample
+# configuration file.
+
+# ============================== Filebeat inputs ===============================
+
+
+
+logging:
+  level: debug
+  to_files: true
+  to_syslog: false
+  files.path: /data/installation/middleware/fb-kafka-system/log/
+  files.name: filebeat.log
+
+
+#output.console:
+#  pretty: true
+
+output.logstash:
+  hosts: ["10.136.106.7:5062"]
+  pipelining: 0
+  bulk_max_size: 0
+  compression_level: 3
+http.enabled: false
+#filebeat.registry.path: /data/installation/middleware/fb-kafka-meteric/
+#filebeat.registry.flush: 10s
+
+
+processors:
+  - decode_json_fields:
+      fields: ["message"]
+      max_depth: 10
+      overwrite_keys: false
+      add_error_key: true
+      target: ""
+  - script:
+      lang: javascript
+      id: customerName_filter
+      source: >
+        function process(event) {
+         var objectkey = event.Get("aws.s3.object.key");
+         if (objectkey != null ) {
+            var objectkeyArr  = objectkey.split("/");
+            if (objectkeyArr!= null  && objectkeyArr.length > 3 ){
+                var customerName = objectkeyArr[1].trim();
+                event.Put("customerShortName",customerName);
+                event.Put("customerEnvironment",objectkeyArr[2]);
+            }
+         }
+         var message = event.Get("message");
+         var stringify = JSON.stringify(message);
+         event.Put("message",stringify);
+        }
+
+
+filebeat.inputs:
+- type: kafka
+  hosts:
+    - localhost:9092
+  topics:
+    - "ph-metric-system-log"
+  group_id: "kafka-consumer-filebeat"
+  fields:
+    type: metrics
+    logComponentName: CONTROLLER_1
+    logComponentType: TPT_CXL_SERVER
+    logFileTimeZone: UTC
+    agentSource: EXPL_AGENT
+    logParserType: TPT_PH
+    logFileType: TPT_PH_METRICS
+    author: pankaj.soni
+    customerShortName: "GRE"
+    tptVersion: "8.22.03.0.01"
+    environmentType: PROD
+    ticketNumber: "INTERGARTION_ANALYSIS"
+  tags:
+  - explorer
+  multiline:
+    pattern: '^\{'
+    negate: true
+    match: after
+  ignore_older: 2400000h
+  scan_frequency: 10s
+  close_inactive: 120s
+  close_eof: false
+  max_backoff: 10s
+  harvester_buffer_size: 32768
+  fields_under_root: true
+  close_renamed: true
+
+
+  # fields:
+  #   type: metrics
+  #   logComponentName: CONTROLLER_1
+  #   logComponentType: TPT_CXL_SERVER
+  #   logFileTimeZone: UTC
+  #   agentSource: filebeat_kafka
+  #   logParserType: TPT_PH
+  #   logFileType: TPT_PH_SYSTEM
+  #   platform.name: interpolation-us-east1
+
+  # Filebeat kafka to Logstash.
+
+# filebeat.inputs:
+# - type: kafka
+#   hosts:
+#     - localhost:9092
+#   topics:
+#     - "ph-metric-log"
+#   # gzip: true
+#   group_id: "kafka-consumer-filebeat"
+#   visibility_timeout: 300s
+#   credential_profile_name: default
